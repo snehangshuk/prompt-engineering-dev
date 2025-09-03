@@ -1,5 +1,4 @@
-## prompt-eng-for-devs
-
+## Prompt Engineering for Developers
 A lightweight collection of notebooks and examples to practice effective prompt engineering as a developer. Use these notebooks to explore patterns, anti-patterns, and practical workflows.
 
 ### What's inside
