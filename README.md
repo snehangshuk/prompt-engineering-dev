@@ -27,7 +27,7 @@ $EDITOR .env
 
 Rename `.env-default` to `.env` and edit the values to match your environment (e.g., API keys or tokens required by your workflow). Ensure `.env` is present before running notebooks that depend on environment variables.
 
-- **Launch the notebooks**:
+- **Launch the notebook (Optional)**:
 
 ```bash
 jupyter lab
