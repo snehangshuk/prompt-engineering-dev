@@ -1,7 +1,5 @@
 # GitHub Copilot API Wrapper
 
-[![Language](https://img.shields.io/badge/language-中文-blue.svg)](README.zh.md)
-
 Python implementation of a GitHub Copilot API wrapper that provides OpenAI-compatible endpoints. This service acts as an API proxy that can accept requests in multiple formats (OpenAI, Anthropic Claude, Google Gemini) and convert them to work with GitHub Copilot's API.
 
 
@@ -37,7 +35,7 @@ pip install uv
 
 ```bash
 # Clone the repository
-git clone https://cto-github.cisco.com/xinyu3/copilot2api.git
+git clone git@github.com:snehangshu-splunk/copilot-api.git
 cd copilot2api
 
 # Install dependencies

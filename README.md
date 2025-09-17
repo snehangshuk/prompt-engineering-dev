@@ -2,20 +2,34 @@
 A lightweight collection of notebooks and examples to practice effective prompt engineering as a developer. Use these notebooks to explore patterns, anti-patterns, and practical workflows.
 
 ### What's inside
-- **coding-examples.ipynb**: Hands-on examples exploring prompts, iteration, and evaluation.
-- **getting_started.ipynb**: A gentle introduction and guided tour.
+- **notebooks/prompt-engineering-for-developers.ipynb**: Main notebook with hands-on examples exploring prompts, iteration, and evaluation.
+- **notebooks/activities/prompt-engineering-exercises.ipynb**: Hand-on assessment notebook for all modules.
+- **notebooks/solutions/prompt-engineering-solutions.ipynb**: Reference solutions for activities.
 - **requirements.txt**: Python dependencies for running the notebooks.
 
 ### Quickstart
-- **Prerequisites**: Python 3.10+ and pip installed; access to Claude Code; VS Code or Cursor recommended.
+- **Prerequisites**: Python 3.10+ and uv installed; access to Claude Code or OpenAI Codex or GitHub Copilot; VS Code or Cursor recommended.
 - **Set up a virtual environment and install deps**:
 
+Use uv to manage dependencies:
+
+#### Using uv (Required)
+
+[uv](https://github.com/astral-sh/uv) is a fast Python package installer and resolver.
+
 ```bash
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Alternative: Install using pip
+pip install uv
+
+# Setup and install dependencies
 cd prompt-eng-for-devs
-python3 -m venv .venv
+uv venv .venv
 source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+uv pip install --upgrade pip
+uv sync -r requirements.txt
 ```
 
 - **Configure environment variables**:
