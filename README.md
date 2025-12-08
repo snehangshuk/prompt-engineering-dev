@@ -1,4 +1,4 @@
-# Prompt Engineering for Developers
+# Advanced Prompt Engineering for Developers
 
 Master prompting techniques for software development with structured tutorials, hands-on exercises, and real-world examples.
 
@@ -6,74 +6,102 @@ Master prompting techniques for software development with structured tutorials, 
 
 **1. Clone the repository:**
 ```bash
-git clone https://cd.splunkdev.com/eng-enablement/prompteng-devs.git
+git clone git@cd.splunkdev.com:eng-enablement/prompteng-devs.git
 cd prompteng-devs
 ```
 
 **2. Begin learning:**
 - **[Start Module 1: Foundations](./01-course/module-01-foundations/)** ← Read README.md, then open the `.ipynb` notebook
 - **[View All Modules](./01-course/)** ← Browse the complete course
-- **[Implementation Examples](./02-implementation-examples/)** ← Production patterns
+
+> **💡 Note**: Environment setup (Python, API keys, dependencies) is covered in the [Quick Setup](#-quick-setup) section below and in Module 1.
 
 ---
 
-## 🎯 Recommended Learning Workflow
+## 🎯 How to Use This Course
 
-> **📚 For Each Module:**
+**For each module:**
+1. Read the `README.md` (objectives & setup)
+2. Open the `.ipynb` notebook
+3. Run cells top to bottom
+4. Complete exercises
+5. Move to next module
 
-#### **Step 1: 📖 Read the Module**
-- Open the module's `README.md` file to understand learning objectives and prerequisites
-
-#### **Step 2: 🚀 Launch the Notebook** 
-- Open the `.ipynb` notebook file to begin the interactive tutorial
-
-#### **Step 3: 💻 Complete All Cells**
-- Run through each cell sequentially from top to bottom
-
-#### **Step 4: 🏃‍♀️ Practice Exercises**
-- Complete the hands-on exercises to reinforce learning
-
-#### **Step 5: 📊 Self-Assess**
-- Use the Skills Checklist in the notebook to track your progress
-
-#### **Step 6: ➡️ Next Module**
-- Move to the next module and repeat the process
-
-**📈 Track Progress**: Use the Skills Checklist in each notebook to mark skills as you master them
-**🚀 Apply Skills**: Use real-world examples after completing all modules
-
-💡 **Tip**: Each module directory contains a `README.md` file explaining what you'll learn and how to get started.
+Track your progress with the Skills Checklist in each notebook.
 
 ---
 
 ## ⚡ Quick Setup
 
-**Prerequisites**: Python 3.8+, IDE with notebook support, API access (GitHub Copilot/CircuIT/OpenAI)
+**Prerequisites**:
+- Python 3.8+
+- IDE with notebook support (VS Code or Cursor)
+- API access (GitHub Copilot/CircuIT/OpenAI)
+- **Splunk users only**: `okta-artifactory-login` configured (required for pip dependencies)
+
+> **💡 Python Version Note**: This course has been tested with Python 3.14. If you encounter installation issues with newer Python versions, try Python 3.11 or 3.12.
 
 > **⚠️ Important - API Access**: OpenAI access via Cisco does **not** provide API access. You must use your **personal OpenAI or Claude API keys** with an email address **other than Cisco/Splunk** to complete the course exercises.
 
+> **💡 Shell Note**: Setup commands are written for bash/zsh. Fish shell users: use `source .venv/bin/activate.fish` instead of `source .venv/bin/activate`.
+
+> **⚠️ Splunk Users - Artifactory Setup Required**: Run `okta-artifactory-login -t pypi` **before** the setup steps below. Without this, pip install will fail. See [Artifactory PyPI setup guide](https://cloud-automation.splunkdev.page/ci-cd/artifactory/ephemeral-credentials-examples/user-guide/pypi/) for installation instructions.
+
 ```bash
 # 1. Clone the repository
-git clone https://cd.splunkdev.com/eng-enablement/prompteng-devs.git
+git clone git@cd.splunkdev.com:eng-enablement/prompteng-devs.git
 cd prompteng-devs
 
 # 2. Install dependencies
-python -m venv .venv
+# Recommended: Using uv (faster, modern Python tooling)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv venv .venv --seed
 source .venv/bin/activate
-pip install ipykernel
+uv pip install ipykernel
 
-# Alternative: Using uv (faster)
-# curl -LsSf https://astral.sh/uv/install.sh | sh
-# uv venv .venv --seed
+# Alternative: Traditional venv (if uv unavailable)
+# python3 -m venv .venv
 # source .venv/bin/activate
-# uv pip install ipykernel
+# pip install ipykernel
 
 # 3. Configure environment
 cp .env-example .env
-# Edit .env with your API keys
+# Edit .env with your API keys, provider, and AI model to use
 ```
 
-**Splunk users**: Run `okta-artifactory-login -t pypi` before installing dependencies. See [Artifactory PyPI setup guide](https://cloud-automation.splunkdev.page/ci-cd/artifactory/ephemeral-credentials-examples/user-guide/pypi/) for installation instructions and access to Splunk's internal PyPI packages.
+
+### 🔧 Advanced Configuration
+
+You can customize the AI provider and models using environment variables in your `.env` file:
+
+**Provider Selection:**
+```bash
+# Module 2
+MODULE2_PROVIDER=claude          # Options: openai, claude, circuit
+
+# Module 3
+MODULE3_PROVIDER=claude          # Options: openai, claude, circuit
+```
+
+**Model Override:**
+```bash
+# Module 2
+MODULE2_OPENAI_MODEL=gpt-5       # For OpenAI/GitHub Copilot
+MODULE2_CLAUDE_MODEL=claude-sonnet-4
+MODULE2_CIRCUIT_MODEL=gpt-4.1    # Default free tier (also: gpt-4o-mini, or gpt-4o with paid access)
+
+# Module 3
+MODULE3_OPENAI_MODEL=gpt-5
+MODULE3_CLAUDE_MODEL=claude-sonnet-4
+MODULE3_CIRCUIT_MODEL=gpt-4.1    # Default free tier (also: gpt-4o-mini, or gpt-4o with paid access)
+```
+
+**Proxy Configuration (for GitHub Copilot):**
+```bash
+MODULE2_OPENAI_BASE_URL=http://localhost:7711/v1
+MODULE2_CLAUDE_BASE_URL=http://localhost:7711
+MODULE2_PROXY_API_KEY=dummy-key
+```
 
 ---
 
@@ -85,11 +113,7 @@ All course modules use **Jupyter notebooks** (`.ipynb` files) - interactive docu
 
 ### ⚠️ Important Requirements
 
-<div style="padding:12px; background:#fee2e2; border-left:4px solid #ef4444; color:#991b1b;">
-
-**You must clone this repository and run notebooks locally.** They cannot be executed directly from GitHub.
-
-</div>
+> **⚠️ Important**: You must clone this repository and run notebooks locally. They cannot be executed directly from GitHub/GitLab.
 
 ### 💡 How Notebooks Work
 
@@ -118,45 +142,28 @@ All code runs on your local machine. When you:
 
 ---
 
-## 📊 Tracking Your Progress
+## 📊 Automated Evaluation
 
-Module 2 includes **automated evaluation** that scores your prompts and tracks your skill mastery.
+Get instant feedback on your prompts with scoring and skill tracking.
 
 ### How It Works
 
-**Write Your Prompt → Get Instant Feedback → Unlock Skills**
+1. Complete practice activities
+2. Run `evaluate_prompt()` for your score (0-100)
+3. Score ≥ 80 unlocks skills
+4. Track progress with `view_progress()`
 
-1. **Complete practice activities** in the hands-on notebooks
-2. **Run `evaluate_prompt()`** to get your score (out of 100)
-3. **Score ≥ 80?** You've unlocked the skills for that activity! 🎉
-4. **View your progress** anytime with `view_progress()`
+**Scoring:**
+- 40% structure (pattern detection)
+- 60% quality (AI assessment)
+- Pass: 80+
 
-### Your Score Breakdown
-
-- **40%** - Structure Check (automated pattern detection)
-- **60%** - Quality Assessment (AI evaluates how well you applied tactics)
-- **Pass threshold:** 80 or higher
-
-Each tactic also includes a **confidence score** (e.g., 85%) showing how certain the AI is about its feedback. Use this to prioritize which suggestions to trust most.
-
-### Example
-
+**Example:**
 ```python
-# Write your prompt
 messages = [...]
-
-# Get evaluated
-evaluate_prompt(
-    messages=messages,
-    activity_name="Activity 2.1",
-    expected_tactics=["Role Prompting", "Structured Inputs"]
-)
-
-# Score: 91/100 ✅
-# Skills unlocked: #1, #2, #3, #4
+evaluate_prompt(messages, "Activity 2.1", ["Role Prompting", "XML Tags"])
+# Score: 91/100 ✅ Skills unlocked: #1, #2, #3, #4
 ```
-
-💡 **Tip**: Your scores are saved automatically. You can retry activities to improve your score and watch yourself get better!
 
 ---
 
@@ -164,19 +171,12 @@ evaluate_prompt(
 
 ### 1. **Interactive Course** - Learn the fundamentals
 - **[Module 1: Foundations](./01-course/module-01-foundations/)** - Interactive notebook (`.ipynb`) with environment setup & prompt anatomy (20 min)
-- **[Module 2: Core Techniques](./01-course/module-02-fundamentals/)** - Interactive notebooks (`.ipynb`) covering role prompting, structured inputs, few-shot examples, chain-of-thought reasoning, reference citations, prompt chaining, and evaluation techniques (90-120 min)  
-- **[Module 3: Applications](./01-course/module-03-applications/)** - Interactive notebook (`.ipynb`) with reusable prompt templates for code review, debugging, refactoring, and SDLC workflows (60 min)
-- **[Module 4: Integration](./01-course/module-04-integration/)** - Interactive notebook (`.ipynb`) with custom commands & AI assistants (30 min)
+- **[Module 2: Core Prompting Techniques](./01-course/module-02-fundamentals/)** - Master six essential prompt engineering techniques through hands-on practice and real coding scenarios. Learn clear instructions (foundation), role prompting, structured inputs with XML tags, few-shot examples, chain-of-thought reasoning, reference citations, and prompt chaining including parallel exploration patterns (90-120 min)  
+- **[Module 3: Applications](./01-course/module-03-applications/)** ⭐ **Optional** - Interactive notebook (`.ipynb`) with reusable prompt templates for code review, debugging, refactoring, and SDLC workflows (60 min)
 
 ### 2. **Practice** - Reinforce learning
 - **Hands-on Exercises** - Integrated into each module to reinforce concepts
 - **Self-Assessment** - Use the Skills Checklist in each module to track your progress
-
-### 3. **Apply** - Real-world patterns
-- **[Code Quality](./02-implementation-examples/code-quality/)** - Refactoring & modernization
-- **[Debugging](./02-implementation-examples/debugging/)** - Incident investigation & resolution
-- **[API Integration](./02-implementation-examples/api-integration/)** - Client generation & error handling
-- **[Custom Commands](./02-implementation-examples/custom-commands/)** - Reusable templates
 
 
 ## 🎯 What You'll Build
@@ -194,7 +194,6 @@ evaluate_prompt(
 ```
 prompteng-devs/
 ├── 01-course/                    # Learning modules
-├── 02-implementation-examples/   # Real-world patterns
 └── GitHub-Copilot-2-API/         # Copilot setup
 ```
 

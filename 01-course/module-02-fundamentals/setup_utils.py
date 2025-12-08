@@ -13,6 +13,19 @@ import os
 from pathlib import Path
 from typing import Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple
 
+import asyncio
+import concurrent.futures
+
+# Load .env file FIRST before reading environment variables
+try:
+    from dotenv import load_dotenv
+    # Try loading .env from project root (two levels up from this file)
+    env_path = Path(__file__).parent.parent.parent / ".env"
+    if env_path.exists():
+        load_dotenv(env_path, override=True)  # override=True ensures .env values take precedence
+except ImportError:
+    pass  # dotenv not available, skip loading
+
 import anthropic
 import openai
 
@@ -34,13 +47,14 @@ PROVIDER: str = os.getenv("MODULE2_PROVIDER", "claude").lower()
 # Default models per provider (customisable via environment variables)
 OPENAI_DEFAULT_MODEL: str = os.getenv("MODULE2_OPENAI_MODEL", "gpt-5")
 CLAUDE_DEFAULT_MODEL: str = os.getenv("MODULE2_CLAUDE_MODEL", "claude-sonnet-4")
-CIRCUIT_DEFAULT_MODEL: str = os.getenv("MODULE2_CIRCUIT_MODEL", "gpt-4o")
+CIRCUIT_DEFAULT_MODEL: str = os.getenv("MODULE2_CIRCUIT_MODEL", "gpt-4.1")
 
 # GitHub Copilot proxy defaults (Option A)
 _OPENAI_BASE_URL = os.getenv("MODULE2_OPENAI_BASE_URL", "http://localhost:7711/v1")
 _CLAUDE_BASE_URL = os.getenv("MODULE2_CLAUDE_BASE_URL", "http://localhost:7711")
 _PROXY_API_KEY = os.getenv("MODULE2_PROXY_API_KEY", "dummy-key")
 
+# Initialize clients AFTER loading .env to ensure correct configuration
 openai_client: openai.OpenAI = openai.OpenAI(
     base_url=_OPENAI_BASE_URL,
     api_key=_PROXY_API_KEY,
@@ -208,11 +222,17 @@ def get_openai_completion(
         raise RuntimeError("OpenAI client is not configured. Run configure_openai_from_env() first.")
 
     cleaned_messages = _ensure_messages(messages)
-    response = openai_client.chat.completions.create(
-        model=model or get_default_model("openai"),
-        messages=cleaned_messages,
-        temperature=temperature,
-    )
+    model_name = model or get_default_model("openai")
+    
+    # GPT-5 doesn't support temperature parameter
+    kwargs = {
+        "model": model_name,
+        "messages": cleaned_messages,
+    }
+    if not model_name.lower().startswith("gpt-5"):
+        kwargs["temperature"] = temperature
+    
+    response = openai_client.chat.completions.create(**kwargs)
     return response.choices[0].message.content or ""
 
 
@@ -311,6 +331,73 @@ def test_connection(
 
 
 # ============================================
+# ⚡ PARALLEL EXECUTION HELPERS
+# ============================================
+
+async def get_chat_completion_async(
+    messages: Sequence[MutableMapping[str, object]],
+    model: Optional[str] = None,
+    temperature: float = 0.0,
+) -> str:
+    """
+    Async wrapper for get_chat_completion to enable parallel execution.
+    
+    Use this when you want to generate multiple completions concurrently using asyncio.gather().
+    
+    Example:
+        >>> async def generate_multiple():
+        ...     results = await asyncio.gather(
+        ...         get_chat_completion_async([{"role": "user", "content": "Approach A"}]),
+        ...         get_chat_completion_async([{"role": "user", "content": "Approach B"}]),
+        ...         get_chat_completion_async([{"role": "user", "content": "Approach C"}])
+        ...     )
+        ...     return results
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        None, 
+        lambda: get_chat_completion(messages, model=model, temperature=temperature)
+    )
+
+
+def run_async(coro):
+    """
+    Run an async coroutine in Jupyter notebooks or regular Python.
+    
+    Jupyter notebooks already have a running event loop, so asyncio.run() won't work.
+    This function handles both cases by running the coroutine in a separate thread if needed.
+    
+    Args:
+        coro: An async coroutine to execute
+        
+    Returns:
+        The result of the coroutine
+        
+    Example:
+        >>> async def my_async_function():
+        ...     return await asyncio.gather(...)
+        >>> result = run_async(my_async_function())
+    """
+    def run():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(coro)
+        finally:
+            loop.close()
+    
+    try:
+        # Check if we're in a running event loop (Jupyter case)
+        asyncio.get_running_loop()
+        # Run in a separate thread with its own event loop
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            return executor.submit(run).result()
+    except RuntimeError:
+        # No running loop - safe to use asyncio.run() directly
+        return asyncio.run(coro)
+
+
+# ============================================
 # 🔖 MISC HELPERS
 # ============================================
 
@@ -327,7 +414,7 @@ def save_markdown(path: str | Path, content: str) -> None:
 
 
 # ============================================
-# 📊 PROMPT EVALUATION (Traditional Metrics + LLM-as-Judge)
+# 📊 PROMPT EVALUATION (Traditional Metrics + Quality Assessment)
 # ============================================
 
 def _extract_section(text: str, section_name: str) -> str:
@@ -370,8 +457,10 @@ def _calculate_traditional_metrics(
     # Also check for examples in content (e.g., "EXAMPLE 1:", "Example:", etc.)
     example_keywords = ["example 1:", "example 2:", "example 3:", "example:"]
     example_count_in_content = sum(1 for kw in example_keywords if kw in prompt_text.lower())
-    # Use the higher count (assistant messages or inline examples)
-    metrics["example_count"] = max(len(assistant_messages), example_count_in_content)
+    # Check for <example> XML tags
+    example_tag_count = prompt_text.lower().count("<example>")
+    # Use the highest count (assistant messages, inline examples, or XML tags)
+    metrics["example_count"] = max(len(assistant_messages), example_count_in_content, example_tag_count)
     metrics["uses_few_shot"] = metrics["example_count"] >= 2
 
     # 4. Chain-of-Thought Keywords
@@ -387,14 +476,19 @@ def _calculate_traditional_metrics(
     metrics["uses_role_prompting"] = len(role_found) > 0
 
     # 6. Tree of Thoughts Detection (multiple approaches/alternatives)
+    # Includes parallel exploration pattern detection
     tot_keywords = ["approach a", "approach b", "approach c", "alternative", "option 1", "option 2", "multiple approaches", "different solutions"]
     tot_tags = ["<approach_a>", "<approach_b>", "<approach_c>", "<option_1>", "<option_2>", "<alternative_"]
+    parallel_keywords = ["parallel", "simultaneously", "concurrent", "asyncio.gather", "all at once", "in parallel"]
     tot_found = [kw for kw in tot_keywords if kw in prompt_text.lower()]
     tot_tags_found = [tag for tag in tot_tags if tag in prompt_text.lower()]
-    metrics["tot_keywords_found"] = tot_found + tot_tags_found
-    metrics["uses_tree_of_thoughts"] = len(tot_found) >= 2 or len(tot_tags_found) >= 2  # At least 2 approaches
+    parallel_found = [kw for kw in parallel_keywords if kw in prompt_text.lower()]
+    metrics["tot_keywords_found"] = tot_found + tot_tags_found + parallel_found
+    # Parallel exploration: multiple approaches OR parallel keywords + at least one approach
+    metrics["uses_tree_of_thoughts"] = len(tot_found) >= 2 or len(tot_tags_found) >= 2 or (len(parallel_found) > 0 and (len(tot_found) >= 1 or len(tot_tags_found) >= 1))
+    metrics["uses_parallel_execution"] = len(parallel_found) > 0 and (len(tot_found) >= 2 or len(tot_tags_found) >= 2)
 
-    # 7. LLM-as-Judge Detection (evaluation rubrics, scoring, weighted criteria)
+    # 7. Evaluation Rubric Detection (evaluation rubrics, scoring, weighted criteria)
     judge_keywords = ["rubric", "evaluate", "score", "rate", "criteria", "weighted", "judge", "assessment", "compare", "0-10", "1-10"]
     judge_found = [kw for kw in judge_keywords if kw in prompt_text.lower()]
     has_percentages = "%" in prompt_text  # Weighted criteria like "40%", "30%"
@@ -422,11 +516,11 @@ def evaluate_prompt(
     return_results: bool = False,
 ) -> Optional[Mapping[str, object]]:
     """
-    Evaluate a student's prompt using Traditional Metrics + LLM-as-Judge.
+    Evaluate a student's prompt using Traditional Metrics + Quality Assessment.
 
     This function provides comprehensive automated feedback by combining:
     1. Traditional eval metrics (objective, fast, deterministic)
-    2. LLM-as-Judge (subjective, nuanced, educational)
+    2. Quality Assessment (subjective, nuanced, educational)
     3. Progress tracking (optional, saves evaluation history)
 
     Args:
@@ -470,12 +564,15 @@ def evaluate_prompt(
     judge_keywords: List[str] = metrics.get('judge_keywords_found', [])  # type: ignore
 
     # Build tactic detection lines dynamically based on expected_tactics
+    parallel_execution = metrics.get('uses_parallel_execution', False)
+    parallel_note = " (parallel execution detected)" if parallel_execution else ""
+    
     tactic_mapping = {
         "Few-Shot Examples": f"- Few-shot examples: {metrics.get('example_count', 0)} examples {'✅' if metrics.get('uses_few_shot') else '❌'}",
         "Chain-of-Thought": f"- Chain-of-thought keywords: {', '.join(cot_keywords) if cot_keywords else 'None'} {'✅' if metrics.get('uses_cot') else '❌'}",
         "Role Prompting": f"- Role indicators: {', '.join(role_indicators) if role_indicators else 'None'} {'✅' if metrics.get('uses_role_prompting') else '❌'}",
-        "Tree of Thoughts": f"- Tree of Thoughts indicators: {', '.join(tot_keywords) if tot_keywords else 'None'} {'✅' if metrics.get('uses_tree_of_thoughts') else '❌'}",
-        "LLM-as-Judge": f"- LLM-as-Judge indicators: {', '.join(judge_keywords) if judge_keywords else 'None'} {'✅' if metrics.get('uses_llm_as_judge') else '❌'}",
+        "Tree of Thoughts": f"- Tree of Thoughts indicators: {', '.join(tot_keywords) if tot_keywords else 'None'} {'✅' if metrics.get('uses_tree_of_thoughts') else '❌'}{parallel_note}",
+        "Evaluation Rubric": f"- Evaluation rubric indicators: {', '.join(judge_keywords) if judge_keywords else 'None'} {'✅' if metrics.get('uses_llm_as_judge') else '❌'}",
         "Reference Citations": f"- Document structure: {'✅ Yes' if metrics.get('uses_document_structure') else '❌ No'}",
         "Structured Inputs": f"- XML tags detected: {', '.join(xml_tags) if xml_tags else 'None'}\n- Uses structured inputs: {'✅ Yes' if metrics.get('uses_xml_structure') else '❌ No'}",
     }
@@ -512,9 +609,7 @@ def evaluate_prompt(
         "Few-Shot Examples": "Check for high-quality examples that teach the desired pattern",
         "Chain-of-Thought": "Check for systematic reasoning instructions",
         "Reference Citations": "Check for proper document structure and quote extraction",
-        "Prompt Chaining": "Check for multi-step workflow with clear dependencies",
-        "LLM-as-Judge": "Check for clear evaluation rubrics and weighted criteria",
-        "Tree of Thoughts": "Check for exploring multiple solution approaches/alternatives in parallel"
+        "Prompt Chaining": "Check for multi-step workflow with clear dependencies. For Activity 2.4 (Parallel Exploration), look for: (1) Multiple approach prompts (A, B, C) that generate alternatives, (2) Evaluation prompt with weighted criteria to compare approaches, (3) Selection logic to pick the best. Sequential and self-correction patterns are also valid.",
     }
 
     # Only include expected tactics in the evaluation criteria
@@ -525,7 +620,7 @@ def evaluate_prompt(
 
     criteria_text = "\n".join(criteria_list)
 
-    # STEP 3: LLM-as-Judge Evaluation (Subjective & Nuanced) with Confidence Scores
+    # STEP 3: Quality Assessment (Subjective & Nuanced) with Confidence Scores
     evaluation_prompt = f"""You are an expert prompt engineering instructor evaluating a student's work.
 
 <traditional_metrics>
@@ -541,7 +636,7 @@ def evaluate_prompt(
 </expected_tactics>
 
 <evaluation_criteria>
-The traditional metrics above show WHAT patterns exist. Your job as LLM-as-Judge is to evaluate HOW WELL they're implemented.
+The traditional metrics above show WHAT patterns exist. Your job is to evaluate HOW WELL they're implemented.
 
 Analyze whether the student successfully applied ONLY THE EXPECTED TACTICS listed above:
 
@@ -593,7 +688,7 @@ Activity skill mappings:
 - Activity 2.1 (Role Prompting + Structured Inputs): Skills #1-4
 - Activity 2.2 (Few-Shot + Chain-of-Thought): Skills #5-8
 - Activity 2.3 (Reference Citations + Prompt Chaining): Skills #9-12
-- Activity 2.4 (Tree of Thoughts + LLM-as-Judge): Skills #13-16
+- Activity 2.4 (Parallel Exploration - Prompt Chaining Pattern 3): Skills #13-16
 
 Based on the activity name and tactics evaluated, list appropriate skill numbers with specific descriptions.
 Format: "- Skill #X: [Specific description of what the student demonstrated]"
@@ -606,7 +701,7 @@ Example format:
 
 IMPORTANT:
 - Be specific about what the student did well in each skill description
-- For Activity 2.4, use skills #13-16 and mention BOTH Tree of Thoughts AND LLM-as-Judge
+- For Activity 2.4, use skills #13-16 and mention Parallel Exploration (Prompt Chaining Pattern 3)
 - Include the tactic name in parentheses at the end of each skill
 </skills_demonstrated>
 
@@ -639,7 +734,7 @@ Provide 3-4 sentences of encouraging, actionable feedback:
 </overall_feedback>
 """
 
-    # Get LLM-as-Judge evaluation
+    # Get AI evaluation
     evaluation_messages: List[MutableMapping[str, object]] = [{"role": "user", "content": evaluation_prompt}]
     llm_judgment = get_chat_completion(evaluation_messages)
 
@@ -746,7 +841,7 @@ Provide 3-4 sentences of encouraging, actionable feedback:
     print(f"📊 COMPREHENSIVE EVALUATION: {activity_name}")
     print("=" * 70)
     print(metrics_summary)
-    print("\n👨‍⚖️ LLM-AS-JUDGE EVALUATION (With Confidence Scores)")
+    print("\n👨‍⚖️ QUALITY ASSESSMENT (With Confidence Scores)")
     print("=" * 70)
     print(llm_judgment)
     print("\n" + "=" * 70)
@@ -948,12 +1043,14 @@ __all__ = [
     "evaluate_prompt",
     "view_progress",
     "get_chat_completion",
+    "get_chat_completion_async",
     "get_claude_completion",
     "get_circuit_completion",
     "get_default_model",
     "get_openai_completion",
     "get_provider",
     "read_markdown",
+    "run_async",
     "save_markdown",
     "set_provider",
     "test_connection",

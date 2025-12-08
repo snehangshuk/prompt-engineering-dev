@@ -6,16 +6,18 @@ This foundational module introduces you to prompt engineering concepts and gets 
 
 ### Learning Objectives
 By completing this module, you will be able to:
-- ✅ Set up a working development environment with AI assistant access
-- ✅ Identify and apply the four core elements of effective prompts
-- ✅ Write basic prompts for reviewing code
-- ✅ Iterate and refine prompts based on output quality
+- Set up a working development environment with AI assistant access
+- Identify and apply the five core elements of effective prompts
+- Write basic prompts for reviewing code
+- Iterate and refine prompts based on output quality
 
 ### Getting Started
 
 **First time here?** 
 - If you haven't set up your development environment yet, follow the [Quick Setup guide](../../README.md#-quick-setup) in the main README first
 - **New to Jupyter notebooks?** Read [About Jupyter Notebooks](../../README.md#-about-jupyter-notebooks) to understand how notebooks work and where code executes
+
+> **⚠️ Important**: You must clone this repository and run notebooks locally. They cannot be executed directly from GitHub/GitLab.
 
 **Ready to start?**
 1. **Open the tutorial notebook**: Click on [module1.ipynb](./module1.ipynb) to start the interactive tutorial

@@ -8,7 +8,7 @@ Python implementation of a GitHub Copilot API wrapper that provides OpenAI-compa
 ### Prerequisites
 
 - Python 3.10 or higher
-- GitHub account with Copilot access [How to apply](./Apply_Github_Copilot.en.md)
+- GitHub account with Copilot access
 - Internet connection for authentication, requires normal access to:
    - **Individual**: Default, uses `api.individual.githubcopilot.com`
    - **Business**: Uses `api.business.githubcopilot.com`
@@ -35,8 +35,8 @@ pip install uv
 
 ```bash
 # Clone the repository
-git clone git@github.com:snehangshu-splunk/copilot-api.git
-cd copilot2api
+git clone git@cd.splunkdev.com:eng-enablement/copilot-api.git
+cd copilot-api
 
 # Install dependencies
 uv sync
